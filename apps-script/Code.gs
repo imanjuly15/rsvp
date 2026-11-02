@@ -26,8 +26,8 @@ const MAX_NOTE = 300;
 const MAX_PHONE = 20;
 const PHONE_PATTERN = /^[0-9+\-() ]+$/;
 const MAX_CONTACT_URL = 500;
-const MAX_PAX_CEILING = 10;
-const DEFAULT_SHARED_MAX_PAX = 4;
+const MAX_PAX_CEILING = 20;
+const DEFAULT_SHARED_MAX_PAX = 20;
 
 const MSG_NOT_FOUND = 'Invitation not found';
 const MSG_CLOSED = 'RSVP is closed';
@@ -87,7 +87,7 @@ function setupSheet() {
     ['event_title', 'Garden Dinner Celebration'],
     ['rsvp_deadline', '2026-12-10'],
     ['site_url', 'https://example.pages.dev'],
-    ['shared_max_pax', 4],
+    ['shared_max_pax', 20],
     ['msg_vip', 'Dear {name}, you are warmly invited to {event}. Please open your personal invitation and RSVP by {deadline}: {link}'],
     ['msg_shared', 'You are warmly invited to {event}. Open the invitation and RSVP by {deadline}: {link}'],
     ['rsvp_open', true],

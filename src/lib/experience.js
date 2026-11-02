@@ -1,5 +1,6 @@
 /* Starts the imperative visuals once React has put the page on screen: the opening, sky, petals and doves. */
 import Art from './art.js';
+import { startAutoScroll } from './autoscroll.js';
 import Heaven from './heaven.js';
 import Intro from './intro.js';
 
@@ -60,7 +61,10 @@ export function startExperience() {
     // The portrait flies to its page position, so the page must be at the top underneath the opening.
     history.scrollRestoration = 'manual';
     window.scrollTo(0, 0);
-    Intro.play(document.getElementById('gate-root')).then(startAmbient);
+    Intro.play(document.getElementById('gate-root')).then(() => {
+      startAmbient();
+      if (!calm) startAutoScroll('rsvp');
+    });
   } else {
     startAmbient();
   }

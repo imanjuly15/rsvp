@@ -223,6 +223,8 @@ html.play-intro #gate-root { display: block; }
 .hero .portrait { width: min(66vw, 300px, calc((100svh - 430px) * .8)); min-width: 150px; }
 .hero .script.gathering { margin-top: 12px; }
 .hero .honouring { margin-top: 8px; }
+/* Upright, so the & is the familiar shape (Garamond's italic & is the old calligraphic "et" form). */
+.hero .amp { font-style: normal; }
 .hero .rule { margin: 10px auto; }
 
 /* The first section's words sit on the lake, and on wide screens stay inside its frame. */

@@ -58,7 +58,7 @@ constants/  strings/  utils/   ← importable by any layer
 - Generating a new key logs out every session.
 - 10 wrong keys within 10 minutes lock admin login for 15 minutes. Guests are not affected.
 - Every request is a POST, so the key and token never appear in a URL or browser history.
-- The script checks every value again (name length, guests allowed 1 to 10, phone digits) and neutralises formula-looking names.
+- The script checks every value again (name length, guests allowed 1 to 20, phone digits) and neutralises formula-looking names.
 - Admin data (names, phones, notes) only goes out with a valid session. The overview never includes `admin_key`.
 
 ## How to change…

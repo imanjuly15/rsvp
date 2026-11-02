@@ -19,7 +19,7 @@ export const RSVP_CONFIG = {
   // Values the offline mock pretends the Sheet holds. Ignored when useMock is false.
   mock: {
     deadline: '2026-12-31',
-    sharedMaxPax: 4,
+    sharedMaxPax: 20,
     contactUrl: 'https://wa.me/60120000000',
     delayMs: 500,
   },

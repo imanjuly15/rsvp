@@ -13,7 +13,7 @@ const DELAY_MS = 400;
 const ID_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 const state = {
-  settings: { eventTitle: 'Memorial Luncheon', deadline: '2026-12-31', rsvpOpen: true, sharedMaxPax: 4 },
+  settings: { eventTitle: 'Memorial Luncheon', deadline: '2026-12-31', rsvpOpen: true, sharedMaxPax: 20 },
   guests: [
     { id: 'DEMOAAA1', name: "Dato' Ashok", pax: 2, phone: '60123456789', firstOpened: '2026-11-02 10:15:00' },
     { id: 'DEMOBBB2', name: 'Puan Lina', pax: 3, phone: '', firstOpened: '2026-11-01 20:03:11' },
@@ -75,7 +75,7 @@ function overview() {
 function cleanGuest(b) {
   const name = typeof b.name === 'string' ? b.name.trim() : '';
   if (!name || name.length > LIMITS.NAME_MAX) return { error: `Name must be 1 to ${LIMITS.NAME_MAX} characters` };
-  if (!Number.isInteger(b.pax) || b.pax < LIMITS.PAX_MIN || b.pax > LIMITS.PAX_MAX) return { error: 'Guests allowed must be a whole number from 1 to 10' };
+  if (!Number.isInteger(b.pax) || b.pax < LIMITS.PAX_MIN || b.pax > LIMITS.PAX_MAX) return { error: `Guests allowed must be a whole number from 1 to ${LIMITS.PAX_MAX}` };
   const phone = String(b.phone || '').replace(/[\s\-()+]/g, '');
   if (phone && (!/^\d{8,15}$/.test(phone) || phone.startsWith('0'))) return { error: 'Phone must be digits with the country code, like 60123456789' };
   return { name, pax: b.pax, phone };

@@ -381,7 +381,7 @@ t('addGuest: row with a fresh valid ID, digits-only phone', r.status && newRow &
 t('addGuest: link and status formulas written', String(newRow[4]).startsWith('=IF(A') && String(newRow[10]).includes('Not opened'));
 t('addGuest: new guest link works at once', get(h, { action: 'guest', id: r.data.id }).data.name === 'YBhg Datin Shivajini');
 t('addGuest: formula-looking name neutralised', (() => { const x = admin(h, { op: 'addGuest', token: tok, name: '=IMPORTXML("x")', pax: 1 }); const row = h.sheets.Guests.rows.find(y => y[0] === x.data.id); return row[1].startsWith('\u2019='); })());
-t('addGuest: pax 0 and 11 rejected', admin(h, { op: 'addGuest', token: tok, name: 'A', pax: 0 }).status === false && admin(h, { op: 'addGuest', token: tok, name: 'A', pax: 11 }).status === false);
+t('addGuest: pax 0 and 21 rejected, 20 accepted', admin(h, { op: 'addGuest', token: tok, name: 'A', pax: 0 }).status === false && admin(h, { op: 'addGuest', token: tok, name: 'A', pax: 21 }).status === false && admin(h, { op: 'addGuest', token: tok, name: 'Twenty', pax: 20 }).status === true);
 t('addGuest: phone with leading 0 or letters rejected', admin(h, { op: 'addGuest', token: tok, name: 'A', pax: 1, phone: '0123456789' }).status === false && admin(h, { op: 'addGuest', token: tok, name: 'A', pax: 1, phone: 'abc12345678' }).status === false);
 t('addGuest: empty name rejected', admin(h, { op: 'addGuest', token: tok, name: '   ', pax: 1 }).status === false);
 t('addGuest: lock busy -> Busy', (() => { h.ctx.__lockOk = false; const x = admin(h, { op: 'addGuest', token: tok, name: 'B', pax: 1 }); h.ctx.__lockOk = true; return x.message === 'Busy, please try again'; })());

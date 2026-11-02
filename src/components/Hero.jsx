@@ -19,6 +19,7 @@ export default function Hero() {
         <span style={{ display: 'contents' }} dangerouslySetInnerHTML={flowers} />
       </div>
       <p className="script gathering">A Gathering in Loving Remembrance</p>
+      <p className="honouring amp">&amp;</p>
       <p className="honouring">Honouring the Life and Legacy of</p>
       <h1>Dr Jayaraman a/l Munusamy</h1>
       <LotusRule />

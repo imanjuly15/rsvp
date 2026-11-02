@@ -20,7 +20,7 @@ export const STATUS = { REPLIED: 'replied', OPENED: 'opened', NOT_OPENED: 'not_o
 export const STATUS_FILTER_ALL = 'all';
 
 /** Same limits as Code.gs (MAX_NAME, MAX_PAX_CEILING, phone rule). The script checks again. */
-export const LIMITS = { NAME_MAX: 120, PAX_MIN: 1, PAX_MAX: 10, PHONE_MIN_DIGITS: 8, PHONE_MAX_DIGITS: 15 };
+export const LIMITS = { NAME_MAX: 120, PAX_MIN: 1, PAX_MAX: 20, PHONE_MIN_DIGITS: 8, PHONE_MAX_DIGITS: 15 };
 
 /** Where the session token is kept: this browser tab only, gone when the tab closes. */
 export const SESSION_STORAGE_KEY = 'rsvp-admin-session';

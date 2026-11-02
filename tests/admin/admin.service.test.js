@@ -62,7 +62,8 @@ test('loadOverview: never throws, flags session expiry', async () => {
 test('checkGuestForm', () => {
   assert.deepEqual(checkGuestForm({ name: '  Dato\' Ashok ', pax: ' 2 ', phone: '+60 12-345 6789' }), { errors: {}, guest: { name: "Dato' Ashok", pax: 2, phone: '60123456789' } });
   assert.deepEqual(checkGuestForm({ name: 'A', pax: '1', phone: '' }).guest, { name: 'A', pax: 1, phone: '' });
-  const e = checkGuestForm({ name: ' ', pax: '11', phone: '0123456789' }).errors;
+  const e = checkGuestForm({ name: ' ', pax: '21', phone: '0123456789' }).errors;
+  assert.deepEqual(checkGuestForm({ name: 'A', pax: '20', phone: '' }).errors, {});
   assert.deepEqual(e, { name: S.needName, pax: S.badPax, phone: S.badPhone });
   assert.equal(checkGuestForm({ name: 'A', pax: '1.5', phone: '' }).errors.pax, S.badPax);
   assert.equal(checkGuestForm({ name: 'A', pax: '2', phone: '60abc' }).errors.phone, S.badPhone);

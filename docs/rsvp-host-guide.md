@@ -31,12 +31,12 @@ There are two kinds of links:
 | `event_title` | The event name, used in the WhatsApp message |
 | `rsvp_deadline` | Last day to reply, like `2026-11-06`. Replies stop at the end of that day, Malaysia time |
 | `site_url` | Your page address, with no slash at the end |
-| `shared_max_pax` | How many people a shared-link guest may bring (1 to 10) |
+| `shared_max_pax` | How many people a public-link guest may bring (1 to 20). If empty, it is 20 |
 | `msg_vip`, `msg_shared` | The invitation message templates. `{name}`, `{event}`, `{deadline}` and `{link}` are filled in for you |
 | `rsvp_open` | `TRUE`. Set it to `FALSE` to close RSVPs immediately |
 | `contact_link` | Optional. Your WhatsApp link, for example from wa.link or `https://wa.me/60123456789`. It must start with `https://`. Guests see a **Contact the family** button when their link is invalid or RSVPs are closed. Leave it empty to hide the button |
 
-**Guests tab:** type each guest's **name** (column B), **pax_allowed** (column C, 1 to 10) and, optionally, their **phone** (column D, digits with country code, like `60123456789`). Delete the three Test Guests first.
+**Guests tab:** type each guest's **name** (column B), **pax_allowed** (column C, 1 to 20) and, optionally, their **phone** (column D, digits with country code, like `60123456789`). Delete the three Test Guests first.
 
 > **Never type or copy a guest ID yourself.** Leave column A empty and let **Generate IDs** fill it. A hand-typed or copied ID makes the personal link show "This invitation link isn't valid".
 
