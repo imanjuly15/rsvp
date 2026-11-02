@@ -16,7 +16,7 @@ function Bank({ seed }) {
 
 export default function App() {
   useEffect(startExperience, []);
-
+//test
   return (
     <>
       <svg id="art-defs" width="0" height="0" aria-hidden="true" focusable="false" dangerouslySetInnerHTML={{ __html: Art.DEFS }} />
