@@ -82,9 +82,9 @@ html.play-intro #petals { z-index: 60; }
 
 /* ---------- Flowers ---------- */
 .bloom { animation: bloom 1.25s cubic-bezier(.2, .85, .3, 1.2) var(--d, 0ms) both; }
-@keyframes bloom { from { transform: scale(0) rotate(-70deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
 .lotus-petal { animation: lotus-open 2s cubic-bezier(.3, .8, .3, 1) var(--d, 0ms) both; }
 @keyframes lotus-open { from { transform: rotate(0deg) scale(.28); opacity: 0; } 25% { opacity: 1; } to { transform: rotate(var(--a)) scale(1); opacity: 1; } }
+@keyframes bloom { from { transform: scale(0) rotate(-70deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
 
 /* ---------- Opening scene ---------- */
 #gate-root { display: none; }
@@ -169,7 +169,73 @@ html.play-intro #gate-root { display: block; }
 @media (min-width: 761px) {
   #page { padding-left: 72px; padding-right: 72px; }
 }
-#page > :not(#vines):not(.bank):not(.heaven-end) { position: relative; z-index: 2; }
+#page > :not(#vines):not(.bank):not(.hero-lake) { position: relative; z-index: 2; }
+
+/* The film's last frame, in the same place on screen, so the film dissolves into the page without the picture changing.
+   Short phones need the darkness to run on below the picture, because the name and dates reach further down. */
+.hero-lake {
+  --lake-w: 100vw;
+  position: absolute; top: 0; left: 50%; z-index: 1;
+  width: var(--lake-w); height: max(100svh, 880px);
+  margin-left: calc(var(--lake-w) / -2);
+  background: #17161a;
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 110px), transparent);
+  mask-image: linear-gradient(180deg, #000 calc(100% - 110px), transparent);
+}
+.hero-lake img { display: block; width: 100%; height: 100svh; object-fit: cover; }
+.hero-lake::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 100svh;
+  background: linear-gradient(180deg, rgba(23, 22, 26, 0) 36%, rgba(23, 22, 26, .5) 50%, rgba(23, 22, 26, .68) 68%, #17161a);
+}
+@media (min-aspect-ratio: 3 / 4) {
+  .hero-lake {
+    --lake-w: max(calc(100dvh * 9 / 16), 440px);
+    -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 110px), transparent), linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(180deg, #000 calc(100% - 110px), transparent), linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+    mask-composite: intersect;
+  }
+}
+
+/* Floats above the dock while the invitation is on screen. */
+.confirm-float {
+  position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 29;
+  padding: 12px 24px;
+  border-radius: 26px;
+  background: #4a2f12;
+  box-shadow: 0 8px 24px rgba(63, 38, 16, .35);
+  color: #fff8e8;
+  font: 600 1rem/1.2 var(--display);
+  text-decoration: none;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 12px);
+  transition: opacity .35s ease-out, transform .35s ease-out;
+}
+.confirm-float.shown { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+.confirm-float:focus-visible { outline: 2px solid var(--gold-deep); outline-offset: 2px; }
+
+/* The first screen fits above the dock, dates included, so the portrait gives way on short screens. */
+#page { padding-top: 54px; }
+.hero .om { margin-bottom: 10px; }
+.hero .portrait { width: min(66vw, 300px, calc((100svh - 430px) * .8)); min-width: 150px; }
+.hero .script.gathering { margin-top: 12px; }
+.hero .honouring { margin-top: 8px; }
+.hero .rule { margin: 10px auto; }
+
+/* The first section's words sit on the lake, and on wide screens stay inside its frame. */
+@media (min-aspect-ratio: 3 / 4) {
+  .hero { width: calc(max(calc(100dvh * 9 / 16), 440px) - 48px); margin-left: auto; margin-right: auto; }
+  .hero .portrait { width: min(300px, calc((100svh - 510px) * .8)); }
+  .hero .script.gathering { font-size: clamp(2rem, 6.4svh, 3rem); }
+  .hero h1 { font-size: clamp(1.8rem, 4.6svh, 2.6rem); }
+}
+.hero .om, .hero .script, .hero h1, .hero .honouring, .hero .dates { color: #fff; text-shadow: 0 1px 14px rgba(10, 30, 45, .6); }
+.hero .om { color: #fbf1da; }
+.hero .script { color: #fbe9c0; }
+.hero .rule { color: #e7c98a; }
+.hero .rule::before, .hero .rule::after { background: linear-gradient(90deg, transparent, #e7c98a); }
 
 /* A patch of soft cloud behind reading text, so the sky stays visible around it. */
 .mist {
@@ -204,36 +270,6 @@ html.play-intro #gate-root { display: block; }
 .bank:not(.seen) .lotus-petal, .bank:not(.seen) .bloom { animation-play-state: paused; }
 
 /* The page ends on the lake footage, with his portrait in the morning sky. */
-.heaven-end {
-  --end-w: min(100vw, 620px);
-  position: relative;
-  z-index: 1;
-  left: 50%;
-  width: var(--end-w);
-  height: min(177vw, 900px);
-  margin: 8px 0 0 calc(var(--end-w) / -2);
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(180deg, transparent, #000 14%);
-  mask-image: linear-gradient(180deg, transparent, #000 14%);
-}
-@media (min-width: 621px) {
-  .heaven-end {
-    -webkit-mask-image: linear-gradient(180deg, transparent, #000 14%), linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
-    mask-image: linear-gradient(180deg, transparent, #000 14%), linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
-    -webkit-mask-composite: source-in;
-    mask-composite: intersect;
-  }
-}
-.heaven-end video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 100%; }
-.end-portrait {
-  position: absolute; left: 50%; top: 13%;
-  width: min(50vw, 240px);
-  aspect-ratio: 4 / 5;
-  opacity: 0;
-  transform: translateX(-50%);
-  transition: opacity 2.4s ease-in-out .4s;
-}
-.heaven-end.seen .end-portrait { opacity: 1; }
 .om {
   margin: 0 0 18px;
   font: 600 1.05rem/1.2 var(--display);
@@ -409,7 +445,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   cursor: pointer;
 }
 
-.closing { margin-top: 10px; }
+/* The page now ends here, so the last words need room above the dock. */
+.closing { margin-top: 10px; margin-bottom: calc(110px + env(safe-area-inset-bottom)); }
 .closing-thanks { margin: 0 0 22px; text-wrap: pretty; }
 .verse { margin: 0; font-style: italic; color: var(--ink-soft); font-size: 1.2rem; text-wrap: balance; }
 @media (max-width: 560px) { .verse br { display: none; } }
@@ -502,7 +539,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   html { scroll-behavior: auto; }
   .rays, .cloud { animation: none; }
   .bloom, .lotus-petal { animation-duration: 1ms; animation-delay: 0ms; }
-  .v-bloom, .collapse, .dock-panel, .end-portrait { transition: none; }
+  .v-bloom, .collapse, .dock-panel, .confirm-float { transition: none; }
   .js .reveal { opacity: 1; transform: none; transition: none; }
   .thanks-dove .dove, .wing { animation: none; }
 }
