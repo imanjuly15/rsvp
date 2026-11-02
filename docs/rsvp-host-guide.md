@@ -97,6 +97,30 @@ Sort or filter the `status` column to see who needs a reminder. `first_opened` c
 
 Text that starts with `=`, `+`, `-` or `@` is saved with a small `’` in front, so it can never run as a formula, even in an Excel export.
 
+## Admin page (manage guests from your phone)
+
+Go to `your-site/admin` to do the everyday work without opening the Sheet:
+- See the totals.
+- Open or close RSVP, and change the deadline.
+- Add or edit guests.
+- Copy a guest's personal link, or press **WhatsApp** to open the chat with the message ready.
+- Read every reply, including shared-link guests and their phone numbers.
+
+Everything you do there is written straight into the Sheet, so the Sheet and the page always match.
+
+**Set it up once:**
+1. In the Sheet, choose **RSVP tools > Generate admin key**. A 32-character key appears. It's also saved in Config as `admin_key`.
+2. Keep the key private, for example in a password manager. Anyone with it can see and change the guest list.
+3. Open `your-site/admin` and enter the key.
+
+**Good to know:**
+- You stay logged in for 2 hours, or until you close the tab.
+- After 10 wrong keys within 10 minutes, admin login is blocked for 15 minutes. Guests are not affected.
+- To change the key (for example after sharing it by mistake), run **Generate admin key** again. Everyone logged in is logged out at once.
+- Guests without a phone number: the **WhatsApp** button opens WhatsApp and lets you pick the contact.
+- The admin page can't delete guests. To remove one, delete the row in the Sheet. Their link stops working.
+- `admin_key` sits in the Config tab, so anyone who can open the Sheet can read it. They can already see the guest list there anyway. Before handing the Sheet to someone else, run **Generate admin key** again or delete the `admin_key` row.
+
 ## 7. Starting fresh (after testing, before real guests)
 
 Two items in the **RSVP tools** menu clear data. Neither one really deletes anything. Each first copies the data into new tabs named **Archive <date time> Responses** and **Archive <date time> Guests**, checks the copy, and only then clears the originals. If the copy fails, nothing is cleared.

@@ -35,6 +35,19 @@ const MSG_BUSY = 'Busy, please try again';
 const MSG_INVALID = 'Invalid request';
 const MSG_ERROR = 'Something went wrong';
 
+// Admin page: key in Config "admin_key", checked here only. Sessions and the guess lockout live in CacheService.
+const MIN_ADMIN_KEY = 24;
+const ADMIN_KEY_LENGTH = 32;
+const ADMIN_SESSION_SECONDS = 2 * 60 * 60;
+const ADMIN_MAX_FAILS = 10;
+const ADMIN_FAIL_WINDOW_SECONDS = 10 * 60;
+const ADMIN_LOCK_SECONDS = 15 * 60;
+const MSG_ADMIN_OFF = 'Admin is not set up. In the Sheet, run RSVP tools > Generate admin key';
+const MSG_ADMIN_DENIED = 'Wrong admin key';
+const MSG_ADMIN_LOCKED = 'Too many wrong keys. Try again in 15 minutes';
+const MSG_ADMIN_SESSION = 'Session expired. Please log in again';
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 /* ------------------------------------------------------------------ */
 /* Sheet menu                                                          */
 /* ------------------------------------------------------------------ */
@@ -45,6 +58,7 @@ function onOpen() {
     .addItem('Set up tabs (first time)', 'setupSheet')
     .addItem('Generate IDs', 'generateIds')
     .addItem('Check setup', 'selfTest')
+    .addItem('Generate admin key', 'generateAdminKey')
     .addSeparator()
     .addItem('Clear test data (keeps guests)', 'clearTestData')
     .addItem('Reset for a new event (deletes guests too)', 'resetForNewEvent')
@@ -442,6 +456,8 @@ function selfTest() {
     if (!Number.isInteger(sm) || sm < 1 || sm > MAX_PAX_CEILING) problems.push('Config "shared_max_pax" must be a whole number from 1 to ' + MAX_PAX_CEILING + '.');
     if (/\/$/.test(String(cfg.site_url || ''))) problems.push('Config "site_url" must not end with a slash.');
     if (parseBool_(cfg.rsvp_open) === null) problems.push('Config "rsvp_open" must be TRUE or FALSE.');
+    const adminKey = String(cfg.admin_key === undefined || cfg.admin_key === null ? '' : cfg.admin_key).trim();
+    if (adminKey && adminKey.length < MIN_ADMIN_KEY) problems.push('Config "admin_key" is too short to be safe. Run RSVP tools > Generate admin key.');
     const contact = String(cfg.contact_link === undefined || cfg.contact_link === null ? '' : cfg.contact_link).trim();
     if (contact && !contactUrl_(cfg)) problems.push('Config "contact_link" must start with https:// (for example https://wa.link/abc123), or be left empty.');
   }
@@ -467,6 +483,8 @@ function doGet(e) {
 
 function doPost(e) {
   try {
+    const body = parseBody_(e);
+    if (body && body.action === 'admin') return handleAdmin_(body);
     return handleRsvp_(e);
   } catch (err) {
     logError_('doPost', err);
@@ -639,8 +657,330 @@ function handleRsvp_(e) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Admin page (POST action "admin")                                    */
+/* ------------------------------------------------------------------ */
+
+/** Menu: makes a new random admin key, saves it in Config, and shows it once. Logs out every open admin page. */
+function generateAdminKey() {
+  const ui = SpreadsheetApp.getUi();
+  const cfg = readConfig_();
+  if (String(cfg.admin_key || '').trim()) {
+    const answer = ui.alert('Generate admin key', 'This replaces the current admin key. Anyone logged in to the admin page is logged out.\n\nContinue?', ui.ButtonSet.YES_NO);
+    if (answer !== ui.Button.YES) {
+      ui.alert('Cancelled. The key was not changed.');
+      return;
+    }
+  }
+  const key = randomKey_();
+  writeConfigValue_('admin_key', key);
+  ui.alert('New admin key (also saved in Config > admin_key):\n\n' + key + '\n\nKeep it private. Anyone with this key can see and change the guest list.');
+}
+
+/** 32 characters from 3 UUIDs, using only their random hex digits (not the version or variant digits). */
+function randomKey_() {
+  let hex = '';
+  while (hex.length < ADMIN_KEY_LENGTH * 2) {
+    const u = Utilities.getUuid().replace(/-/g, '');
+    hex += u.substr(0, 12) + u.substr(20, 12);
+  }
+  let key = '';
+  for (let i = 0; i < ADMIN_KEY_LENGTH; i++) key += ID_ALPHABET.charAt(parseInt(hex.substr(i * 2, 2), 16) % ID_ALPHABET.length);
+  return key;
+}
+
+function parseBody_(e) {
+  try {
+    const body = JSON.parse((e && e.postData && e.postData.contents) || '');
+    return body && typeof body === 'object' && !Array.isArray(body) ? body : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function handleAdmin_(body) {
+  if (body.op === 'login') return adminLogin_(body.key);
+  if (!adminSessionValid_(body.token)) return fail_(MSG_ADMIN_SESSION);
+  if (body.op === 'overview') return ok_('OK', adminOverview_());
+  if (body.op === 'addGuest') return adminAddGuest_(body);
+  if (body.op === 'updateGuest') return adminUpdateGuest_(body);
+  if (body.op === 'setConfig') return adminSetConfig_(body);
+  return fail_(MSG_INVALID);
+}
+
+function adminKey_() {
+  const key = String(readConfig_().admin_key || '').trim();
+  return key.length >= MIN_ADMIN_KEY ? key : '';
+}
+
+/** Compares every character so the time taken does not reveal how much of a guess was right. */
+function sameText_(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+function adminLogin_(rawKey) {
+  const cache = CacheService.getScriptCache();
+  if (cache.get('admin_locked')) return fail_(MSG_ADMIN_LOCKED);
+  const key = adminKey_();
+  if (!key) return fail_(MSG_ADMIN_OFF);
+  if (typeof rawKey !== 'string' || !sameText_(rawKey.trim(), key)) {
+    const fails = Number(cache.get('admin_fails') || 0) + 1;
+    cache.put('admin_fails', String(fails), ADMIN_FAIL_WINDOW_SECONDS);
+    if (fails >= ADMIN_MAX_FAILS) {
+      cache.put('admin_locked', '1', ADMIN_LOCK_SECONDS);
+      cache.remove('admin_fails');
+      return fail_(MSG_ADMIN_LOCKED);
+    }
+    return fail_(MSG_ADMIN_DENIED);
+  }
+  cache.remove('admin_fails');
+  const token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+  // The session remembers which key it was made with, so a new key logs everyone out.
+  cache.put('admin_s_' + token, key, ADMIN_SESSION_SECONDS);
+  return ok_('OK', { token: token, expiresInSeconds: ADMIN_SESSION_SECONDS });
+}
+
+function adminSessionValid_(token) {
+  if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)) return false;
+  const key = adminKey_();
+  const stored = CacheService.getScriptCache().get('admin_s_' + token);
+  return Boolean(key && stored && sameText_(stored, key));
+}
+
+/** Everything the admin page shows, in one call. Never includes admin_key. */
+function adminOverview_() {
+  const cfg = readConfig_();
+  const siteUrl = String(cfg.site_url || '').trim().replace(/\/+$/, '');
+  const deadline = deadlineString_(cfg.rsvp_deadline) || '';
+  const fill = function (template, name, link) {
+    return String(template || '')
+      .split('{name}').join(name)
+      .split('{event}').join(String(cfg.event_title || ''))
+      .split('{deadline}').join(longDate_(deadline))
+      .split('{link}').join(link);
+  };
+
+  const responses = readResponses_();
+  const latest = {};
+  responses.forEach(function (r) { if (r.guestId) latest[r.guestId] = r; });
+
+  const guests = readGuests_().map(function (g) {
+    const link = siteUrl && g.id ? siteUrl + '/?id=' + g.id : '';
+    const reply = latest[g.id] || null;
+    const message = link ? fill(cfg.msg_vip, g.name, link) : '';
+    return {
+      id: g.id,
+      name: g.name,
+      pax: g.pax,
+      phone: g.phone,
+      link: link,
+      // With a phone, WhatsApp opens that chat; without one, it lets you pick the contact.
+      whatsappUrl: message ? 'https://wa.me/' + g.phone + '?text=' + encodeURIComponent(message) : '',
+      firstOpened: g.opened,
+      reply: reply ? { attending: reply.attending, pax: reply.pax, note: reply.note, updated: reply.updated || reply.timestamp } : null,
+      status: reply ? 'replied' : (g.opened ? 'opened' : 'not_opened')
+    };
+  });
+
+  const yes = responses.filter(function (r) { return r.attending === 'yes'; });
+  const sharedMessage = siteUrl ? fill(cfg.msg_shared, '', siteUrl) : '';
+  return {
+    settings: {
+      eventTitle: String(cfg.event_title || ''),
+      deadline: deadline,
+      rsvpOpen: parseBool_(cfg.rsvp_open) === true,
+      open: isOpen_(cfg),
+      sharedMaxPax: sharedMaxPax_(cfg),
+      siteUrl: siteUrl,
+      sharedLink: siteUrl,
+      sharedWhatsappUrl: sharedMessage ? 'https://wa.me/?text=' + encodeURIComponent(sharedMessage) : ''
+    },
+    summary: {
+      invited: guests.length,
+      replied: guests.filter(function (g) { return g.status === 'replied'; }).length,
+      notOpened: guests.filter(function (g) { return g.status === 'not_opened'; }).length,
+      attendingReplies: yes.length,
+      declinedReplies: responses.length - yes.length,
+      peopleComing: yes.reduce(function (sum, r) { return sum + r.pax; }, 0),
+      sharedReplies: responses.filter(function (r) { return r.source === 'shared'; }).length
+    },
+    guests: guests,
+    responses: responses
+  };
+}
+
+/** Checks name, pax and phone typed on the admin page. Returns an error message or the clean values. */
+function cleanGuestInput_(body) {
+  if (typeof body.name !== 'string') return { error: 'Please enter a name' };
+  const name = body.name.trim();
+  if (name.length < 1 || name.length > MAX_NAME) return { error: 'Name must be 1 to ' + MAX_NAME + ' characters' };
+  if (!Number.isInteger(body.pax) || body.pax < 1 || body.pax > MAX_PAX_CEILING) return { error: 'Guests allowed must be a whole number from 1 to ' + MAX_PAX_CEILING };
+  let phone = '';
+  if (body.phone !== undefined && body.phone !== null && body.phone !== '') {
+    if (typeof body.phone !== 'string') return { error: MSG_INVALID };
+    phone = body.phone.replace(/[\s\-()+]/g, '');
+    if (!/^\d{8,15}$/.test(phone) || phone.charAt(0) === '0') return { error: 'Phone must be digits with the country code, like 60123456789' };
+  }
+  return { name: sanitise_(name), pax: body.pax, phone: phone };
+}
+
+function adminAddGuest_(body) {
+  const input = cleanGuestInput_(body);
+  if (input.error) return fail_(input.error);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return fail_(MSG_BUSY);
+  let id;
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_GUESTS);
+    if (!sheet) throw new Error('E_NO_GUESTS_TAB');
+    const used = {};
+    readGuests_().forEach(function (g) { used[g.id] = true; });
+    id = newUniqueId_(used);
+    const row = lastDataRow_(sheet, 2) + 1;
+    // Plain text keeps the name from being read as a formula and the phone's digits exactly as typed.
+    sheet.getRange(row, 2).setNumberFormat('@');
+    sheet.getRange(row, 4).setNumberFormat('@');
+    sheet.getRange(row, 1, 1, 4).setValues([[id, input.name, input.pax, input.phone]]);
+    const formulas = formulasForRow_(row);
+    sheet.getRange(row, 5, 1, 5).setFormulas([formulas.slice(0, 5)]);
+    sheet.getRange(row, 11, 1, 1).setFormulas([[formulas[5]]]);
+    SpreadsheetApp.flush();
+  } finally {
+    lock.releaseLock();
+  }
+  return ok_('Guest added', { id: id });
+}
+
+function adminUpdateGuest_(body) {
+  const id = normaliseId_(body.id);
+  if (!id) return fail_(MSG_NOT_FOUND);
+  const input = cleanGuestInput_(body);
+  if (input.error) return fail_(input.error);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return fail_(MSG_BUSY);
+  try {
+    const guest = readGuests_().filter(function (g) { return g.id === id; })[0];
+    if (!guest) return fail_(MSG_NOT_FOUND);
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_GUESTS);
+    sheet.getRange(guest.row, 2).setNumberFormat('@');
+    sheet.getRange(guest.row, 4).setNumberFormat('@');
+    sheet.getRange(guest.row, 2, 1, 3).setValues([[input.name, input.pax, input.phone]]);
+    SpreadsheetApp.flush();
+  } finally {
+    lock.releaseLock();
+  }
+  return ok_('Guest updated', { id: id });
+}
+
+/** Changes rsvp_open and/or rsvp_deadline. Anything else in Config stays a Sheet-only setting. */
+function adminSetConfig_(body) {
+  const changes = [];
+  if (body.rsvpOpen !== undefined) {
+    if (typeof body.rsvpOpen !== 'boolean') return fail_(MSG_INVALID);
+    changes.push(['rsvp_open', body.rsvpOpen]);
+  }
+  if (body.deadline !== undefined) {
+    if (!validDate_(body.deadline)) return fail_('Deadline must be a real date like 2026-11-06');
+    changes.push(['rsvp_deadline', body.deadline]);
+  }
+  if (!changes.length) return fail_(MSG_INVALID);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return fail_(MSG_BUSY);
+  try {
+    changes.forEach(function (c) { writeConfigValue_(c[0], c[1]); });
+    SpreadsheetApp.flush();
+  } finally {
+    lock.releaseLock();
+  }
+  return ok_('Settings saved', {});
+}
+
+function validDate_(s) {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s + 'T00:00:00Z');
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+/** "2026-11-06" -> "6 November 2026" (same as the WhatsApp formula in Guests). */
+function longDate_(ymd) {
+  if (!ymd) return '';
+  const p = ymd.split('-');
+  return Number(p[2]) + ' ' + MONTHS[Number(p[1]) - 1] + ' ' + p[0];
+}
+
+/** Writes one Config value, adding the key row if it is missing. */
+function writeConfigValue_(key, value) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_CONFIG);
+  if (!sheet) throw new Error('E_NO_CONFIG_TAB');
+  const last = Math.max(sheet.getLastRow(), 1);
+  const keys = sheet.getRange(1, 1, last, 1).getValues();
+  for (let i = 1; i < keys.length; i++) {
+    if (String(keys[i][0]).trim() === key) {
+      sheet.getRange(i + 1, 2).setValue(value);
+      return;
+    }
+  }
+  sheet.getRange(last + 1, 1, 1, 2).setValues([[key, value]]);
+}
+
+/* ------------------------------------------------------------------ */
 /* Sheet reads                                                         */
 /* ------------------------------------------------------------------ */
+
+/** Sheets may turn a written "2026-11-02 10:00:00" into a date cell; give it back as text either way. */
+function cellText_(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) return Utilities.formatDate(v, TZ, 'yyyy-MM-dd HH:mm:ss');
+  return v === undefined || v === null ? '' : String(v).trim();
+}
+
+/** Every guest row that has a valid ID and a name. Rows without an ID yet are skipped (run Generate IDs). */
+function readGuests_() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_GUESTS);
+  if (!sheet) throw new Error('E_NO_GUESTS_TAB');
+  const last = lastDataRow_(sheet, 2);
+  if (last < 2) return [];
+  const out = [];
+  sheet.getRange(2, 1, last - 1, OPENED_COL).getValues().forEach(function (r, i) {
+    const id = String(r[0]).trim().toUpperCase();
+    const name = String(r[1]).trim();
+    if (!ID_PATTERN.test(id) || !name) return;
+    const pax = Number(r[2]);
+    out.push({
+      row: i + 2,
+      id: id,
+      name: name,
+      pax: Number.isInteger(pax) && pax >= 1 ? Math.min(pax, MAX_PAX_CEILING) : 1,
+      phone: String(r[3]).replace(/\D/g, ''),
+      opened: cellText_(r[OPENED_COL - 1])
+    });
+  });
+  return out;
+}
+
+/** Every reply row in Responses, oldest first. */
+function readResponses_() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_RESPONSES);
+  if (!sheet) throw new Error('E_NO_RESPONSES_TAB');
+  const last = lastDataRow_(sheet, 1);
+  if (last < 2) return [];
+  const cols = responseCols_(sheet);
+  return sheet.getRange(2, 1, last - 1, cols).getValues().map(function (r) {
+    return {
+      timestamp: cellText_(r[0]),
+      guestId: String(r[1]).trim().toUpperCase(),
+      name: String(r[2]),
+      attending: String(r[3]) === 'yes' ? 'yes' : 'no',
+      pax: Number(r[4]) || 0,
+      note: String(r[5]),
+      source: String(r[6]) === 'vip' ? 'vip' : 'shared',
+      verified: r[7] === true || String(r[7]).toUpperCase() === 'TRUE',
+      updated: cellText_(r[8]),
+      phone: cols === PHONE_COL ? String(r[9]) : ''
+    };
+  });
+}
 
 /** Config tab: key in column A, value in column B, header in row 1. */
 function readConfig_() {

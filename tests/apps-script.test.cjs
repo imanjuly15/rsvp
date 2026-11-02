@@ -57,6 +57,8 @@ function build(opts = {}) {
       flush() {}
     },
     LockService: { getScriptLock: () => ({ tryLock: () => ctx.__lockOk !== false, releaseLock() {} }) },
+    // In-memory stand-in; tests expire entries by deleting them from ctx.__cache.
+    CacheService: { getScriptCache: () => ({ get: k => (k in ctx.__cache ? ctx.__cache[k] : null), put: (k, v) => { ctx.__cache[k] = String(v); }, remove: k => { delete ctx.__cache[k]; } }) },
     Utilities: {
       getUuid: () => crypto.randomUUID(),
       formatDate: (d, tz, fmt) => {
@@ -66,6 +68,7 @@ function build(opts = {}) {
     },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: s => ({ s, setMimeType() { return this; }, getContent() { return this.s; } }) }
   };
+  ctx.__cache = {};
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync((process.argv[2] || require('path').join(__dirname, '..', 'apps-script', 'Code.gs')), 'utf8'), ctx);
   const call = (fn, arg) => JSON.parse(vm.runInContext(fn, Object.assign(ctx, { __a: arg })) && ctx.__r);
@@ -328,6 +331,92 @@ h.run('selfTest()');
 t('selfTest flags a bad contact_link', /contact_link/.test(h.alerts[h.alerts.length - 1]), h.alerts[h.alerts.length - 1]);
 h = build({ empty: true }); h.run('setupSheet()');
 t('setup adds contact_link row and phone header', h.sheets.Config.rows.some(r => r[0] === 'contact_link') && h.sheets.Responses.rows[0][9] === 'phone');
+
+// --- admin page
+const KEY = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const admin = (h, body) => post(h, Object.assign({ action: 'admin' }, body));
+const loginAs = (h) => admin(h, { op: 'login', key: KEY }).data.token;
+const withKey = (h) => { h.sheets.Config.rows.push(['admin_key', KEY]); return h; };
+
+h = build(); h.run('generateIds()');
+t('admin: not set up without a key', admin(h, { op: 'login', key: 'x' }).message === 'Admin is not set up. In the Sheet, run RSVP tools > Generate admin key');
+h.sheets.Config.rows.push(['admin_key', 'short']);
+t('admin: a short key counts as not set up', admin(h, { op: 'login', key: 'short' }).status === false);
+h.run('selfTest()');
+t('selfTest warns about a short admin_key', /admin_key/.test(h.alerts[h.alerts.length - 1]), h.alerts[h.alerts.length - 1]);
+
+h = withKey(build()); h.run('generateIds()');
+t('admin: wrong key denied', admin(h, { op: 'login', key: 'nope' }).message === 'Wrong admin key');
+r = admin(h, { op: 'login', key: '  ' + KEY + ' ' });
+t('admin: right key gives a 64-hex session token', r.status && /^[0-9a-f]{64}$/.test(r.data.token) && r.data.expiresInSeconds === 7200, r);
+const tok = r.data.token;
+t('admin: no token -> session expired', admin(h, { op: 'overview' }).message === 'Session expired. Please log in again');
+t('admin: made-up token -> session expired', admin(h, { op: 'overview', token: 'f'.repeat(64) }).status === false);
+t('admin: unknown op rejected', admin(h, { op: 'dropTables', token: tok }).status === false);
+
+// overview
+const G0 = h.sheets.Guests.rows;
+const gidA = G0[1][0], gidB = G0[2][0];
+get(h, { action: 'guest', id: gidA });
+post(h, { action: 'rsvp', id: gidA, attending: 'yes', pax: 2, note: 'see you' });
+post(h, { action: 'rsvp', name: 'Shared Sam', attending: 'yes', pax: 3, phone: '0123456789' });
+post(h, { action: 'rsvp', name: 'Shared No', attending: 'no' });
+r = admin(h, { op: 'overview', token: tok });
+const ov = r.data;
+t('overview: never returns admin_key', r.status && !JSON.stringify(r).includes(KEY));
+const ga = ov.guests.find(g => g.id === gidA), gb = ov.guests.find(g => g.id === gidB);
+t('overview: personal link built from site_url', ga.link === 'https://example.pages.dev/?id=' + gidA, ga.link);
+t('overview: WhatsApp link to the phone with the filled message', ga.whatsappUrl.startsWith('https://wa.me/60123456789?text=') && decodeURIComponent(ga.whatsappUrl.split('text=')[1]) === "Dear Dato' Ashok, Garden Dinner 10 December 2026 https://example.pages.dev/?id=" + gidA, ga.whatsappUrl);
+t('overview: no phone -> WhatsApp lets you pick the contact', gb.whatsappUrl.startsWith('https://wa.me/?text='), gb.whatsappUrl);
+t('overview: statuses', ga.status === 'replied' && ga.reply.attending === 'yes' && ga.reply.pax === 2 && gb.status === 'not_opened' && /^\d{4}-/.test(ga.firstOpened), [ga, gb]);
+t('overview: summary counts', JSON.stringify(ov.summary) === JSON.stringify({ invited: 2, replied: 1, notOpened: 1, attendingReplies: 2, declinedReplies: 1, peopleComing: 5, sharedReplies: 2 }), ov.summary);
+t('overview: responses include shared phone', ov.responses.length === 3 && ov.responses[1].phone === '0123456789' && ov.responses[1].source === 'shared' && ov.responses[1].verified === false);
+t('overview: settings', ov.settings.deadline === '2026-12-10' && ov.settings.rsvpOpen === true && ov.settings.sharedMaxPax === 4 && ov.settings.sharedWhatsappUrl.startsWith('https://wa.me/?text='), ov.settings);
+t('overview: does not stamp first_opened', (() => { admin(h, { op: 'overview', token: tok }); return h.sheets.Guests.rows[2][9] === ''; })());
+
+// add / update
+r = admin(h, { op: 'addGuest', token: tok, name: '  YBhg Datin Shivajini  ', pax: 3, phone: '+60 12-999 8888' });
+const newRow = h.sheets.Guests.rows.find(x => x[1] === 'YBhg Datin Shivajini');
+t('addGuest: row with a fresh valid ID, digits-only phone', r.status && newRow && /^[ABCDEFGHJKLMNPQRSTUVWXYZ2-9]{8}$/.test(newRow[0]) && newRow[0] === r.data.id && newRow[2] === 3 && newRow[3] === '60129998888', newRow);
+t('addGuest: link and status formulas written', String(newRow[4]).startsWith('=IF(A') && String(newRow[10]).includes('Not opened'));
+t('addGuest: new guest link works at once', get(h, { action: 'guest', id: r.data.id }).data.name === 'YBhg Datin Shivajini');
+t('addGuest: formula-looking name neutralised', (() => { const x = admin(h, { op: 'addGuest', token: tok, name: '=IMPORTXML("x")', pax: 1 }); const row = h.sheets.Guests.rows.find(y => y[0] === x.data.id); return row[1].startsWith('\u2019='); })());
+t('addGuest: pax 0 and 11 rejected', admin(h, { op: 'addGuest', token: tok, name: 'A', pax: 0 }).status === false && admin(h, { op: 'addGuest', token: tok, name: 'A', pax: 11 }).status === false);
+t('addGuest: phone with leading 0 or letters rejected', admin(h, { op: 'addGuest', token: tok, name: 'A', pax: 1, phone: '0123456789' }).status === false && admin(h, { op: 'addGuest', token: tok, name: 'A', pax: 1, phone: 'abc12345678' }).status === false);
+t('addGuest: empty name rejected', admin(h, { op: 'addGuest', token: tok, name: '   ', pax: 1 }).status === false);
+t('addGuest: lock busy -> Busy', (() => { h.ctx.__lockOk = false; const x = admin(h, { op: 'addGuest', token: tok, name: 'B', pax: 1 }); h.ctx.__lockOk = true; return x.message === 'Busy, please try again'; })());
+r = admin(h, { op: 'updateGuest', token: tok, id: gidB.toLowerCase(), name: 'Puan Lina Binti Ali', pax: 4, phone: '' });
+t('updateGuest: name, pax, phone changed; ID kept', r.status && h.sheets.Guests.rows[2][0] === gidB && h.sheets.Guests.rows[2][1] === 'Puan Lina Binti Ali' && h.sheets.Guests.rows[2][2] === 4 && h.sheets.Guests.rows[2][3] === '', h.sheets.Guests.rows[2]);
+t('updateGuest: unknown ID rejected', admin(h, { op: 'updateGuest', token: tok, id: 'ZZZZZZZZ', name: 'A', pax: 1 }).message === 'Invitation not found');
+
+// settings
+t('setConfig: close RSVP', admin(h, { op: 'setConfig', token: tok, rsvpOpen: false }).status && post(h, { action: 'rsvp', name: 'Late', attending: 'no' }).message === 'RSVP is closed');
+t('setConfig: reopen and move deadline', admin(h, { op: 'setConfig', token: tok, rsvpOpen: true, deadline: '2026-12-20' }).status && get(h, { action: 'config' }).data.deadline === '2026-12-20' && get(h, { action: 'config' }).data.open === true);
+t('setConfig: impossible date rejected', admin(h, { op: 'setConfig', token: tok, deadline: '2026-02-30' }).status === false);
+t('setConfig: rsvpOpen must be true/false', admin(h, { op: 'setConfig', token: tok, rsvpOpen: 'yes' }).status === false);
+t('setConfig: nothing to change rejected', admin(h, { op: 'setConfig', token: tok }).status === false);
+
+// expiry, key change, lockout
+delete h.ctx.__cache['admin_s_' + tok];
+t('admin: expired session refused', admin(h, { op: 'overview', token: tok }).message === 'Session expired. Please log in again');
+const tok2 = loginAs(h);
+h.run('generateAdminKey()');
+const newKey = h.sheets.Config.rows.find(x => x[0] === 'admin_key')[1];
+t('generateAdminKey: 32 chars from the ID alphabet, replaces the old key', /^[ABCDEFGHJKLMNPQRSTUVWXYZ2-9]{32}$/.test(newKey) && newKey !== KEY && h.alerts[h.alerts.length - 1].includes(newKey), newKey);
+t('generateAdminKey: old sessions logged out', admin(h, { op: 'overview', token: tok2 }).status === false);
+t('generateAdminKey: new key logs in', admin(h, { op: 'login', key: newKey }).status === true);
+h.ctx.__yes = false; h.run('generateAdminKey()'); h.ctx.__yes = undefined;
+t('generateAdminKey: cancel keeps the key', h.sheets.Config.rows.find(x => x[0] === 'admin_key')[1] === newKey);
+h = build(); h.run('generateAdminKey()');
+t('generateAdminKey: adds the Config row when missing', /^[A-Z2-9]{32}$/.test((h.sheets.Config.rows.find(x => x[0] === 'admin_key') || [])[1]));
+
+h = withKey(build());
+for (let i = 0; i < 9; i++) admin(h, { op: 'login', key: 'guess' + i });
+t('lockout: 10th wrong key locks', admin(h, { op: 'login', key: 'guess9' }).message === 'Too many wrong keys. Try again in 15 minutes');
+t('lockout: even the right key is refused while locked', admin(h, { op: 'login', key: KEY }).message === 'Too many wrong keys. Try again in 15 minutes');
+delete h.ctx.__cache.admin_locked;
+t('lockout: after it expires the right key works', admin(h, { op: 'login', key: KEY }).status === true);
+t('public RSVP still works next to admin', post(h, { action: 'rsvp', name: 'Still OK', attending: 'no' }).status === true);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
