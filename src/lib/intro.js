@@ -23,7 +23,7 @@ const Intro = (function () {
             <p class="verse-b">but you will never leave our hearts.</p>
           </div>
           <div class="film-text film-caption">
-            <p class="remember">In loving remembrance of</p>
+            <p class="remember">A gathering in loving remembrance of</p>
             <p class="name">Dr Jayaraman a/l Munusamy</p>
             <p class="span">22 March 1938 – 30 October 2026</p>
           </div>
