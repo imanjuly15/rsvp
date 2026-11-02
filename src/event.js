@@ -3,7 +3,8 @@ export const EVENT = {
   ceremony_name: 'Memorial Luncheon',
 
   // Malaysia time. Use '2026-11-07' while the time is unconfirmed, or '2026-11-07T10:30' once it is known.
-  ceremony_datetime: '2026-11-07',
+  ceremony_datetime: '2026-11-07T12:00',
+  ceremony_end: '15:00', // Optional finishing time, in 24-hour form.
 
   venue_name: 'India Gate Signature Restaurant',
   venue_address: 'Tropicana Golf & Country Resort, Tropicana, 47410 Petaling Jaya, Selangor',
