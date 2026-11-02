@@ -1,6 +1,6 @@
 /* The mantra recording. Browsers only allow sound after a touch, so it tries at once, then again at each touch until one is allowed. */
-const LEVEL = .45;
-const audio = new Audio('assets/moksha-mantras.mp3');
+const LEVEL = .8;
+const audio = new Audio('assets/om-namah-shivaya.mp3');
 audio.loop = true;
 audio.preload = 'none';
 const listeners = new Set();

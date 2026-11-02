@@ -202,9 +202,10 @@ html.play-intro #gate-root { display: block; }
   position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 29;
   padding: 12px 24px;
   border-radius: 26px;
-  background: #4a2f12;
-  box-shadow: 0 8px 24px rgba(63, 38, 16, .35);
-  color: #fff8e8;
+  border: 2px solid #fff8e8;
+  background: #1f6b3f;
+  box-shadow: 0 8px 24px rgba(20, 60, 35, .45);
+  color: #fff;
   font: 600 1rem/1.2 var(--display);
   text-decoration: none;
   white-space: nowrap;
@@ -214,7 +215,7 @@ html.play-intro #gate-root { display: block; }
   transition: opacity .35s ease-out, transform .35s ease-out;
 }
 .confirm-float.shown { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
-.confirm-float:focus-visible { outline: 2px solid var(--gold-deep); outline-offset: 2px; }
+.confirm-float:focus-visible { outline: 2px solid #1f6b3f; outline-offset: 2px; }
 
 /* The first screen fits above the dock, dates included, so the portrait gives way on short screens. */
 #page { padding-top: 54px; }
