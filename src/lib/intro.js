@@ -1,12 +1,13 @@
 /*
  * The opening is real-looking footage and plain type, nothing more: an unlit lamp in a dark room.
- * The guest lights it in his memory, the verse appears, then dawn over still water, and his name.
+ * It lights by itself in his memory, the verse appears, then dawn over still water, and his name.
  * The clips were generated in Google Flow; see public/assets. Timings follow the clips themselves.
  */
 import Music from './music.js';
 
 const Intro = (function () {
-  const AUTO_LIGHT_MS = 7000;
+  const LIGHT_AFTER_MS = 1500;
+  const REFUSED_HOLD_MS = 4000;
 
 /** Runs the opening and resolves once the page is showing. */
   function play(root) {
@@ -16,7 +17,6 @@ const Intro = (function () {
           <video class="film-clip lake" src="assets/lake.mp4" poster="assets/lake-poster.jpg" muted playsinline preload="auto"></video>
           <video class="film-clip lamp" src="assets/lamp.mp4" poster="assets/lamp-poster.jpg" muted playsinline preload="auto"></video>
           <p class="film-text film-om show">Om Shanti</p>
-          <p class="film-text film-hint show">Touch the lamp to light it in his memory</p>
           <div class="film-scrim"></div>
           <div class="film-text film-verse">
             <p class="verse-a">You may have left this world,</p>
@@ -34,7 +34,6 @@ const Intro = (function () {
       const film = q('.film');
       const lamp = q('.lamp');
       const lake = q('.lake');
-      let lit = false;
       let done = false;
       let leaving = false;
       let lakeStarted = false;
@@ -60,7 +59,8 @@ const Intro = (function () {
         out.finished.then(finish).catch(finish);
       }
 
-      const show = (selector) => q(selector).classList.add('show');
+      // A clip can report its time once more after the film has been removed.
+      const show = (selector) => q(selector)?.classList.add('show');
       const hide = (selector) => q(selector).classList.remove('show');
 
       // Timed from the clips, so a slow connection delays the words along with the picture.
@@ -85,31 +85,21 @@ const Intro = (function () {
       lake.addEventListener('ended', () => leave(800));
       [lamp, lake].forEach((clip) => clip.addEventListener('error', () => leave(600)));
 
-      function light(byTouch) {
-        if (lit) return;
-        lit = true;
-        clearTimeout(autoTimer);
-        film.classList.add('lit');
-        hide('.film-hint');
+      function light() {
         hide('.film-om');
-        // Browsers only allow sound after a touch. A lamp that lights by itself stays silent until the guest presses Play.
-        if (byTouch) Music.play(4000);
-        lamp.play().catch(() => leave(600));
+        lamp.play().catch(() => {
+          // Some phones refuse to play by themselves, in Low Power Mode for one. The still lamp and the verse stand in.
+          film.classList.add('reading');
+          show('.verse-a');
+          show('.verse-b');
+          setTimeout(() => leave(1500), REFUSED_HOLD_MS);
+        });
         // If the footage can't play at all, a guest should never be left waiting in the dark.
         safetyTimer = setTimeout(() => leave(800), 30000);
       }
 
-      film.addEventListener('click', (e) => {
-        if (!e.target.closest('button')) light(true);
-      });
-      window.addEventListener('keydown', function onKey(e) {
-        if (done) {
-          window.removeEventListener('keydown', onKey);
-          return;
-        }
-        if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest?.('button')) light(true);
-      });
-      autoTimer = setTimeout(() => light(false), AUTO_LIGHT_MS);
+      Music.playWhenAllowed(4000);
+      autoTimer = setTimeout(light, LIGHT_AFTER_MS);
 
       q('.gate-skip').addEventListener('click', () => {
         clearTimeout(autoTimer);

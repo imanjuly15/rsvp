@@ -1,4 +1,4 @@
-/* The mantra recording. Browsers only allow sound after a touch, so it starts when the guest lights the lamp or presses the button. */
+/* The mantra recording. Browsers only allow sound after a touch, so it tries at once, then again at each touch until one is allowed. */
 const LEVEL = .45;
 const audio = new Audio('assets/moksha-mantras.mp3');
 audio.loop = true;
@@ -29,12 +29,33 @@ function play(fadeMs = 3000) {
   audio.play()?.then(() => ramp(LEVEL, fadeMs)).catch(emit);
 }
 
+/** Keeps asking until the browser allows sound. The sound button answers for itself, so touching it ends the asking. */
+function playWhenAllowed(fadeMs) {
+  const events = ['click', 'touchend', 'keydown'];
+  const stop = () => events.forEach((name) => document.removeEventListener(name, attempt, true));
+  function attempt(e) {
+    if (e?.target.closest?.('#sound-btn')) {
+      stop();
+      return;
+    }
+    if (!audio.paused) return;
+    audio.volume = 0;
+    audio.play()?.then(() => {
+      stop();
+      ramp(LEVEL, fadeMs);
+    }).catch(emit);
+  }
+  events.forEach((name) => document.addEventListener(name, attempt, true));
+  attempt();
+}
+
 function pause() {
   ramp(0, 500, () => audio.pause());
 }
 
 export default {
   play,
+  playWhenAllowed,
   pause,
   toggle: () => (audio.paused ? play(1200) : pause()),
   isPlaying: () => !audio.paused,

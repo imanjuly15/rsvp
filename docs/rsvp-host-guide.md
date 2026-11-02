@@ -34,7 +34,7 @@ There are two kinds of links:
 | `shared_max_pax` | How many people a shared-link guest may bring (1 to 10) |
 | `msg_vip`, `msg_shared` | The invitation message templates. `{name}`, `{event}`, `{deadline}` and `{link}` are filled in for you |
 | `rsvp_open` | `TRUE`. Set it to `FALSE` to close RSVPs immediately |
-| `contact_link` | Optional. Your WhatsApp link, for example from wa.link or `https://wa.me/60123456789`. It must start with `https://`. Guests see a **Contact the host** button when their link is invalid or RSVPs are closed. Leave it empty to hide the button |
+| `contact_link` | Optional. Your WhatsApp link, for example from wa.link or `https://wa.me/60123456789`. It must start with `https://`. Guests see a **Contact the family** button when their link is invalid or RSVPs are closed. Leave it empty to hide the button |
 
 **Guests tab:** type each guest's **name** (column B), **pax_allowed** (column C, 1 to 10) and, optionally, their **phone** (column D, digits with country code, like `60123456789`). Delete the three Test Guests first.
 
@@ -139,6 +139,6 @@ This version adds the optional `phone` column (Responses, column J) and the `con
 | Page says "We could not load the RSVP form" | The script URL is empty or wrong, or the script isn't deployed with access **Anyone** |
 | Replies stop appearing after you edited the script | You saved but didn't deploy a **New version** |
 | "This invitation link isn't valid" on a personal link | The ID was copied wrongly, or the guest has no ID yet. Run Generate IDs |
-| Page says "RSVP is closed" too early | Check `rsvp_open` and `rsvp_deadline` in Config. A missing or badly written date closes RSVPs on purpose |
+| Page says "Responses are now closed" too early | Check `rsvp_open` and `rsvp_deadline` in Config. A missing or badly written date closes RSVPs on purpose |
 | No phone numbers in Responses | Responses cell J1 must say `phone` (see "If you used an older copy") |
-| No Contact the host button | `contact_link` is empty or doesn't start with `https://` |
+| No Contact the family button | `contact_link` is empty or doesn't start with `https://` |
