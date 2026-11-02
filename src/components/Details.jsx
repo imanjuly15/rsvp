@@ -37,7 +37,7 @@ export default function Details() {
           {EVENT.note && <p className="details-note">{EVENT.note}</p>}
         </>
       ) : (
-        <p className="tba">Wake and funeral arrangements will be announced once confirmed.</p>
+        <p className="tba">Details of the luncheon will be shared here once confirmed.</p>
       )}
     </Reveal>
   );

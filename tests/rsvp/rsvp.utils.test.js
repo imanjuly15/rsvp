@@ -32,10 +32,10 @@ test('formatDeadline and leadText', () => {
 });
 
 test('thanksMessage and repliedMessage', () => {
-  assert.match(thanksMessage({ attending: 'yes', pax: 2 }, 'Akmal'), /^Akmal, we have noted 2 people attending/);
-  assert.match(thanksMessage({ attending: 'no', pax: 0 }, 'Akmal'), /^Akmal, thank you for letting us know/);
-  assert.equal(repliedMessage({ attending: 'yes', pax: 1 }), 'You replied: Yes, 1 person');
-  assert.equal(repliedMessage({ attending: 'no', pax: 0 }), 'You replied: Unable to attend');
+  assert.match(thanksMessage({ attending: 'yes', pax: 2 }, 'Akmal'), /^Akmal, we have recorded your attendance for 2 people/);
+  assert.match(thanksMessage({ attending: 'no', pax: 0 }, 'Akmal'), /^Akmal, we are grateful that you let us know/);
+  assert.equal(repliedMessage({ attending: 'yes', pax: 1 }), 'Your response: attending, 1 person');
+  assert.equal(repliedMessage({ attending: 'no', pax: 0 }), 'Your response: unable to attend');
 });
 
 test('countDigits and clamp', () => {
