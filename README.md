@@ -42,4 +42,4 @@ Answers are saved to a Google Sheet through a Google Apps Script web app. Person
 
 ## Opening sound
 
-The film starts by itself. `public/assets/moksha-mantras.mp3` starts as soon as the browser allows it, usually at a guest's first touch of the page, and the Mantra button plays or pauses it. Replace that file to change the music.
+The film starts by itself. `public/assets/om-namah-shivaya.mp3` starts as soon as the browser allows it, usually at a guest's first touch of the page, and the Mantra button plays or pauses it. Replace that file to change the music.
