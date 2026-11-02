@@ -26,6 +26,7 @@ Upload the `dist` folder to any static host, such as Netlify, Cloudflare Pages o
 | `src/event.js` | Ceremony date, time, venue and attire. This is the file to edit. |
 | `src/components/` | React components: page sections, countdown, bottom bar |
 | `src/features/rsvp/` | The RSVP form and everything around it |
+| `admin.html`, `src/features/admin/` | The admin page at `/admin` (guests, links, WhatsApp, settings), built separately |
 | `apps-script/`, `docs/` | The Google Sheet script and the host guide (not part of the site) |
 | `src/lib/` | Canvas and SVG drawing, the opening animation, the scrolling sky, the mantra player |
 | `public/assets/` | Portrait and mantra audio |
