@@ -15,6 +15,7 @@ function Row({ term, children }) {
 
 export default function Details() {
   const when = parseWhen(EVENT.ceremony_datetime);
+  const ends = EVENT.ceremony_end ? parseWhen(`${EVENT.ceremony_datetime.slice(0, 10)}T${EVENT.ceremony_end}`) : null;
   const venue = [EVENT.venue_name, EVENT.venue_address].filter(Boolean).join('\n');
   const href = mapHref(EVENT);
 
@@ -26,7 +27,9 @@ export default function Details() {
           {when && <Countdown target={targetOf(when)} />}
           <dl className="detail-list">
             <Row term="Date">{when ? longDate(when) : 'To be announced'}</Row>
-            <Row term="Time">{when && when.h !== null ? timeOf(when) : 'To be announced'}</Row>
+            <Row term="Time">
+              {when && when.h !== null ? `${timeOf(when)}${ends ? ` – ${timeOf(ends)}` : ''}` : 'To be announced'}
+            </Row>
             <Row term="Venue">{venue || 'To be announced'}</Row>
             <Row term="Attire">{EVENT.dress_code}</Row>
           </dl>
