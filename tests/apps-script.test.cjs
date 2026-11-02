@@ -40,7 +40,7 @@ function build(opts = {}) {
       ['', 'Puan Lina', 3, ''],
       ['', '', '', '']
     ]),
-    Responses: makeSheet([['timestamp', 'guest_id', 'name', 'attending', 'pax', 'note', 'source', 'verified', 'updated']])
+    Responses: makeSheet([['timestamp', 'guest_id', 'name', 'attending', 'pax', 'note', 'source', 'verified', 'updated', 'phone']])
   };
   const alerts = [];
   const ctx = {
@@ -95,7 +95,7 @@ t('typed value preserved on re-run', (() => { h.sheets.Guests.rows[2][7] = 'x'; 
 h = build(); h.run('generateIds()');
 const vid = h.sheets.Guests.rows[1][0];
 let r = get(h, { action: 'guest', id: vid });
-t('guest lookup ok, minimal data', r.status && r.data.name === "Dato' Ashok" && r.data.pax === 2 && r.data.replied === null && Object.keys(r.data).sort().join() === 'deadline,name,open,pax,replied', r);
+t('guest lookup ok, minimal data', r.status && r.data.name === "Dato' Ashok" && r.data.pax === 2 && r.data.replied === null && Object.keys(r.data).sort().join() === 'contactUrl,deadline,name,open,pax,replied', r);
 t('lowercase id accepted', get(h, { action: 'guest', id: vid.toLowerCase() }).status === true);
 const nf1 = get(h, { action: 'guest', id: 'ZZZZZZZZ' }), nf2 = get(h, { action: 'guest', id: 'bad' }), nf3 = get(h, { action: 'guest' });
 t('unknown/malformed/missing id identical message', nf1.message === 'Invitation not found' && nf2.message === nf1.message && nf3.message === nf1.message && !nf1.data);
@@ -127,8 +127,9 @@ t('leading - and @ also neutralised', (() => { post(h, { action: 'rsvp', name: '
 t('text format set on name/note cells', h.sheets.Responses.formats['3,3'] === '@' && h.sheets.Responses.formats['3,6'] === '@');
 t('shared over cap rejected', post(h, { action: 'rsvp', name: 'A', attending: 'yes', pax: 5 }).status === false);
 t('shared needs name', post(h, { action: 'rsvp', name: '  ', attending: 'no' }).status === false);
-t('name too long rejected', post(h, { action: 'rsvp', name: 'x'.repeat(81), attending: 'no' }).status === false);
-t('note too long rejected', post(h, { action: 'rsvp', name: 'A', attending: 'no', note: 'x'.repeat(201) }).status === false);
+t('name too long rejected', post(h, { action: 'rsvp', name: 'x'.repeat(121), attending: 'no' }).status === false);
+t('note too long rejected', post(h, { action: 'rsvp', name: 'A', attending: 'no', note: 'x'.repeat(301) }).status === false);
+t('name of 120 and note of 300 accepted', post(h, { action: 'rsvp', name: 'x'.repeat(120), attending: 'no', note: 'y'.repeat(300) }).status === true);
 t('pax string rejected', post(h, { action: 'rsvp', name: 'A', attending: 'yes', pax: '2' }).status === false);
 t('pax float rejected', post(h, { action: 'rsvp', name: 'A', attending: 'yes', pax: 1.5 }).status === false);
 t('bad attending rejected', post(h, { action: 'rsvp', name: 'A', attending: 'maybe' }).status === false);
@@ -287,6 +288,46 @@ h = build(); h.run('selfTest()');
 t('selfTest passes a good setup', h.alerts[0] === 'Setup looks good.', h.alerts);
 h = build(); h.sheets.Config.rows[2][1] = 'bad'; h.sheets.Guests.rows[0][1] = 'oops'; h.run('selfTest()');
 t('selfTest reports problems', /rsvp_deadline/.test(h.alerts[0]) && /Guests column 2/.test(h.alerts[0]), h.alerts);
+
+// --- phone (optional, shared links only, column J only when its header is "phone")
+h = build(); h.run('generateIds()');
+r = post(h, { action: 'rsvp', name: 'Shared Phone', attending: 'no', phone: '+60 12-345 6789' });
+rows = h.sheets.Responses.rows;
+t('shared phone saved in column J as plain text', r.status && rows[1][9] === '+60 12-345 6789' && h.sheets.Responses.formats['2,10'] === '@', rows[1]);
+t('shared without phone saves empty phone', post(h, { action: 'rsvp', name: 'No Phone', attending: 'no' }).status && h.sheets.Responses.rows[2][9] === '');
+t('phone with letters rejected', post(h, { action: 'rsvp', name: 'A', attending: 'no', phone: '=HYPERLINK(1)' }).message === 'Please enter a valid phone number');
+t('phone with too few digits rejected', post(h, { action: 'rsvp', name: 'A', attending: 'no', phone: '1234' }).status === false);
+t('phone that is not a string rejected', post(h, { action: 'rsvp', name: 'A', attending: 'no', phone: 60123456789 }).status === false);
+const pid = h.sheets.Guests.rows[1][0];
+post(h, { action: 'rsvp', id: pid, attending: 'no', phone: '0123456789' });
+t('vip phone ignored', h.sheets.Responses.rows[3][1] === pid && h.sheets.Responses.rows[3][9] === '', h.sheets.Responses.rows[3]);
+
+// older Sheet: no phone header, host formula in J -> J never written or cleared
+h = build(); h.run('generateIds()');
+h.sheets.Responses.rows[0].length = 9;
+h.sheets.Responses.rows[1] = ['', '', '', '', '', '', '', '', '', '=dup'];
+post(h, { action: 'rsvp', name: 'Old Sheet', attending: 'no', phone: '0123456789' });
+t('older Sheet: reply saved, J formula untouched', h.sheets.Responses.rows[1][2] === 'Old Sheet' && h.sheets.Responses.rows[1][9] === '=dup', h.sheets.Responses.rows[1]);
+h.ctx.__yes = true; h.run('clearTestData()');
+t('older Sheet: clear keeps the J formula', h.sheets.Responses.rows[1][2] === '' && h.sheets.Responses.rows[1][9] === '=dup', h.sheets.Responses.rows[1]);
+h.run('selfTest()');
+t('older Sheet: selfTest asks for the phone column', /Responses column 10 should be "phone"/.test(h.alerts[h.alerts.length - 1]), h.alerts[h.alerts.length - 1]);
+
+// --- contact_link
+h = build();
+t('contactUrl empty when not set', get(h, { action: 'config' }).data.contactUrl === '');
+h.sheets.Config.rows.push(['contact_link', ' https://wa.link/abc123 ']);
+t('config returns contact_link', get(h, { action: 'config' }).data.contactUrl === 'https://wa.link/abc123');
+h.run('generateIds()');
+t('guest lookup returns contact_link', get(h, { action: 'guest', id: h.sheets.Guests.rows[1][0] }).data.contactUrl === 'https://wa.link/abc123');
+for (const bad of ['javascript:alert(1)', 'http://wa.link/x', 'https://x.com/a b', 'https://x.com/"><b>']) {
+  h.sheets.Config.rows[h.sheets.Config.rows.length - 1][1] = bad;
+  t('unsafe contact_link not returned: ' + bad, get(h, { action: 'config' }).data.contactUrl === '');
+}
+h.run('selfTest()');
+t('selfTest flags a bad contact_link', /contact_link/.test(h.alerts[h.alerts.length - 1]), h.alerts[h.alerts.length - 1]);
+h = build({ empty: true }); h.run('setupSheet()');
+t('setup adds contact_link row and phone header', h.sheets.Config.rows.some(r => r[0] === 'contact_link') && h.sheets.Responses.rows[0][9] === 'phone');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

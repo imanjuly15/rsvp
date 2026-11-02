@@ -13,16 +13,19 @@ const TAB_RESPONSES = 'Responses';
 
 const GUEST_HEADERS = ['guest_id', 'name', 'pax_allowed', 'phone', 'link', 'whatsapp_link', 'reply', 'pax_confirmed', 'responded', 'first_opened', 'status'];
 const OPENED_COL = 10; // column J: written by the script the first time a guest opens their personal link
-const RESPONSE_HEADERS = ['timestamp', 'guest_id', 'name', 'attending', 'pax', 'note', 'source', 'verified', 'updated'];
-const RESPONSE_COLS = RESPONSE_HEADERS.length;
+const RESPONSE_HEADERS = ['timestamp', 'guest_id', 'name', 'attending', 'pax', 'note', 'source', 'verified', 'updated', 'phone'];
+const PHONE_COL = 10; // column J: added later, so the script only uses it when its header is "phone" (see responseCols_)
 
 // 32 characters, no I or O, no 0 or 1. 8 characters = 32^8 (about 1.1 trillion) combinations.
 const ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ID_LENGTH = 8;
 const ID_PATTERN = /^[ABCDEFGHJKLMNPQRSTUVWXYZ2-9]{8}$/;
 
-const MAX_NAME = 80;
-const MAX_NOTE = 200;
+const MAX_NAME = 120;
+const MAX_NOTE = 300;
+const MAX_PHONE = 20;
+const PHONE_PATTERN = /^[0-9+\-() ]+$/;
+const MAX_CONTACT_URL = 500;
 const MAX_PAX_CEILING = 10;
 const DEFAULT_SHARED_MAX_PAX = 4;
 
@@ -73,7 +76,8 @@ function setupSheet() {
     ['shared_max_pax', 4],
     ['msg_vip', 'Dear {name}, you are warmly invited to {event}. Please open your personal invitation and RSVP by {deadline}: {link}'],
     ['msg_shared', 'You are warmly invited to {event}. Open the invitation and RSVP by {deadline}: {link}'],
-    ['rsvp_open', true]
+    ['rsvp_open', true],
+    ['contact_link', '']
   ]);
   ensure(TAB_GUESTS, GUEST_HEADERS, [
     ['', 'Test Guest One', 2, ''],
@@ -333,7 +337,7 @@ function archiveBeforeDelete_(ss, mode) {
     if (responses) {
       const last = lastDataRow_(responses, 1);
       if (last >= 2) {
-        const values = responses.getRange(1, 1, last, RESPONSE_COLS).getValues();
+        const values = responses.getRange(1, 1, last, responseCols_(responses)).getValues();
         made.push(writeArchiveTab_(ss, 'Archive ' + stamp + ' Responses', values, [3, 6]));
       }
     }
@@ -384,13 +388,13 @@ function writeArchiveTab_(ss, baseName, values, textCols) {
   return name;
 }
 
-/** Clears Responses columns A to I below the header. Returns how many reply rows there were. */
+/** Clears Responses columns A to I (and J when it is the phone column) below the header. Returns how many reply rows there were. */
 function clearResponses_(ss) {
   const sheet = ss.getSheetByName(TAB_RESPONSES);
   if (!sheet) return 0;
   const count = Math.max(0, lastDataRow_(sheet, 1) - 1);
   const max = sheet.getMaxRows();
-  if (max > 1) sheet.getRange(2, 1, max - 1, RESPONSE_COLS).clearContent();
+  if (max > 1) sheet.getRange(2, 1, max - 1, responseCols_(sheet)).clearContent();
   return count;
 }
 
@@ -438,6 +442,8 @@ function selfTest() {
     if (!Number.isInteger(sm) || sm < 1 || sm > MAX_PAX_CEILING) problems.push('Config "shared_max_pax" must be a whole number from 1 to ' + MAX_PAX_CEILING + '.');
     if (/\/$/.test(String(cfg.site_url || ''))) problems.push('Config "site_url" must not end with a slash.');
     if (parseBool_(cfg.rsvp_open) === null) problems.push('Config "rsvp_open" must be TRUE or FALSE.');
+    const contact = String(cfg.contact_link === undefined || cfg.contact_link === null ? '' : cfg.contact_link).trim();
+    if (contact && !contactUrl_(cfg)) problems.push('Config "contact_link" must start with https:// (for example https://wa.link/abc123), or be left empty.');
   }
 
   SpreadsheetApp.getUi().alert(problems.length ? 'Please fix:\n\n' + problems.join('\n') : 'Setup looks good.');
@@ -473,7 +479,8 @@ function handleConfig_() {
   return ok_('OK', {
     deadline: deadlineString_(cfg.rsvp_deadline) || '',
     open: isOpen_(cfg),
-    sharedMaxPax: sharedMaxPax_(cfg)
+    sharedMaxPax: sharedMaxPax_(cfg),
+    contactUrl: contactUrl_(cfg)
   });
 }
 
@@ -492,7 +499,8 @@ function handleGuest_(rawId) {
     pax: guest.pax,
     replied: reply ? { attending: reply.attending, pax: reply.pax } : null,
     deadline: deadlineString_(cfg.rsvp_deadline) || '',
-    open: isOpen_(cfg)
+    open: isOpen_(cfg),
+    contactUrl: contactUrl_(cfg)
   });
 }
 
@@ -579,6 +587,17 @@ function handleRsvp_(e) {
     if (note.length > MAX_NOTE) return fail_('Note must be at most ' + MAX_NOTE + ' characters');
   }
 
+  // 6b. Phone: optional, shared links only (a VIP's phone is already in Guests, so it is ignored for them)
+  let phone = '';
+  if (source === 'shared' && body.phone !== undefined && body.phone !== null) {
+    if (typeof body.phone !== 'string') return fail_(MSG_INVALID);
+    phone = body.phone.trim();
+    const digits = phone.replace(/\D/g, '').length;
+    if (phone && (phone.length > MAX_PHONE || !PHONE_PATTERN.test(phone) || digits < 8 || digits > 15)) {
+      return fail_('Please enter a valid phone number');
+    }
+  }
+
   // 7. Sanitise, lock, write
   const safeName = sanitise_(name);
   const safeNote = sanitise_(note);
@@ -599,11 +618,16 @@ function handleRsvp_(e) {
       sheet.getRange(existing.row, 9).setValue(now);
     } else {
       const row = lastDataRow_(sheet, 1) + 1;
-      const range = sheet.getRange(row, 1, 1, RESPONSE_COLS);
+      const values = [now, guestId, safeName, body.attending, pax, safeNote, source, source === 'vip', ''];
       // Plain-text format on name and note stops Sheets reading them as formulas.
       sheet.getRange(row, 3).setNumberFormat('@');
       sheet.getRange(row, 6).setNumberFormat('@');
-      range.setValues([[now, guestId, safeName, body.attending, pax, safeNote, source, source === 'vip', '']]);
+      if (responseCols_(sheet) === PHONE_COL) {
+        // Plain text keeps a leading + or 0. PHONE_PATTERN allows no letters, so it cannot hold a formula.
+        sheet.getRange(row, PHONE_COL).setNumberFormat('@');
+        values.push(phone);
+      }
+      sheet.getRange(row, 1, 1, values.length).setValues([values]);
     }
     SpreadsheetApp.flush();
   } finally {
@@ -663,6 +687,11 @@ function findResponse_(guestId) {
   return null;
 }
 
+/** Columns the script owns in Responses: A to I, plus J when its header is "phone" (older Sheets may use J for a host formula). */
+function responseCols_(sheet) {
+  return String(sheet.getRange(1, PHONE_COL).getValue()).trim() === 'phone' ? PHONE_COL : PHONE_COL - 1;
+}
+
 /**
  * Last row holding a value in the given column. Used instead of getLastRow() so helper
  * formulas in other columns (for example the duplicate flag) do not push new rows downward.
@@ -713,6 +742,12 @@ function isOpen_(cfg) {
 function sharedMaxPax_(cfg) {
   const n = Number(cfg.shared_max_pax);
   return Number.isInteger(n) && n >= 1 && n <= MAX_PAX_CEILING ? n : DEFAULT_SHARED_MAX_PAX;
+}
+
+/** Config contact_link, only if it is a plain https:// link (it becomes a link on the page). Otherwise ''. */
+function contactUrl_(cfg) {
+  const s = String(cfg.contact_link === undefined || cfg.contact_link === null ? '' : cfg.contact_link).trim();
+  return s.length <= MAX_CONTACT_URL && /^https:\/\/[^\s"'<>\\]+$/i.test(s) ? s : '';
 }
 
 /**
