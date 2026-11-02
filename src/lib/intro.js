@@ -61,7 +61,7 @@ const Intro = (function () {
 
       // A clip can report its time once more after the film has been removed.
       const show = (selector) => q(selector)?.classList.add('show');
-      const hide = (selector) => q(selector).classList.remove('show');
+      const hide = (selector) => q(selector)?.classList.remove('show');
 
       // Timed from the clips, so a slow connection delays the words along with the picture.
       lamp.addEventListener('timeupdate', () => {
@@ -79,7 +79,9 @@ const Intro = (function () {
       });
       lake.addEventListener('timeupdate', () => {
         const t = lake.currentTime;
-        if (t >= 1.8) show('.film-caption');
+        if (t >= 1.8 && t < 5) show('.film-caption');
+        // His name is gone before the dissolve, so it never lies across the page's own.
+        if (t >= 5) hide('.film-caption');
         if (t >= 6.4) leave(1500);
       });
       lake.addEventListener('ended', () => leave(800));

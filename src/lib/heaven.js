@@ -60,10 +60,10 @@ const Heaven = (function () {
   /* ---------- Vines ---------- */
   function buildVines() {
     const page = document.getElementById('page');
-    const end = document.getElementById('heaven-end');
+    const closing = document.querySelector('.closing');
     const box = document.getElementById('vines');
     const W = page.clientWidth;
-    const H = end.offsetTop + 40;
+    const H = closing.offsetTop + closing.offsetHeight + 40;
     const compact = W < 560;
     const edge = compact ? 5 : 34;
     const amp = compact ? 4 : 11;

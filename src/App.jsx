@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import Closing from './components/Closing.jsx';
+import ConfirmButton from './components/ConfirmButton.jsx';
 import Details from './components/Details.jsx';
 import Dock from './components/Dock.jsx';
-import Ending from './components/Ending.jsx';
 import Hero from './components/Hero.jsx';
 import RsvpForm from './components/RsvpForm.jsx';
 import SoundButton from './components/SoundButton.jsx';
@@ -26,6 +26,9 @@ export default function App() {
 
       <main id="page">
         <div id="vines" aria-hidden="true" />
+        <div className="hero-lake" aria-hidden="true">
+          <img src="assets/lake-end.jpg" alt="" width="720" height="1280" />
+        </div>
         <Hero />
         <Bank seed={201} />
         <Tribute />
@@ -35,9 +38,9 @@ export default function App() {
         <RsvpForm />
         <Bank seed={281} />
         <Closing />
-        <Ending />
       </main>
 
+      <ConfirmButton />
       <Dock />
       <SoundButton />
     </>
